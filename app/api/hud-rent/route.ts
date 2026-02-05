@@ -2,10 +2,24 @@ import { NextResponse } from "next/server";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
-
 const HUD_FMR_BASE = "https://www.huduser.gov/hudapi/public/fmr";
 const HUD_USPS_BASE = "https://www.huduser.gov/hudapi/public/usps";
 
+// --- DynamoDB (created once per runtime) ---
+const AWS_REGION = process.env.AWS_REGION;
+const TABLE_NAME = process.env.DDB_TABLE_HUD_LOOKUPS;
+
+const ddb =
+  AWS_REGION && TABLE_NAME
+    ? DynamoDBDocumentClient.from(new DynamoDBClient({ region: AWS_REGION }))
+    : null;
+
+async function logLookup(item: any) {
+  if (!ddb || !TABLE_NAME) return;
+  await ddb.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+}
+
+// --- HUD helpers ---
 function getToken() {
   const token = process.env.HUDUSER_TOKEN;
   if (!token) throw new Error("Missing HUDUSER_TOKEN (set in .env.local and Vercel env vars).");
@@ -14,10 +28,7 @@ function getToken() {
 
 async function hudGet(url: string) {
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-      Accept: "application/json",
-    },
+    headers: { Authorization: `Bearer ${getToken()}`, Accept: "application/json" },
     cache: "no-store",
   });
 
@@ -29,7 +40,6 @@ async function hudGet(url: string) {
   return res.json();
 }
 
-// maps 0-4 to HUD keys
 function bedroomKey(bedrooms: number) {
   if (bedrooms === 0) return "Efficiency";
   if (bedrooms === 1) return "One-Bedroom";
@@ -41,9 +51,7 @@ function bedroomKey(bedrooms: number) {
 
 function pickBest(results: any[]) {
   if (!Array.isArray(results) || results.length === 0) return null;
-  return results
-    .slice()
-    .sort((a, b) => (b.res_ratio ?? 0) - (a.res_ratio ?? 0))[0];
+  return results.slice().sort((a, b) => (b.res_ratio ?? 0) - (a.res_ratio ?? 0))[0];
 }
 
 export async function GET(req: Request) {
@@ -67,21 +75,21 @@ export async function GET(req: Request) {
     let rent: number | null = null;
     let source: "SAFMR" | "FMR_METRO" | "FMR_COUNTY" = "FMR_COUNTY";
     let areaName: string | null = null;
+    let entityIdUsed: string | null = null;
 
     // 2) Try metro entity first (if CBSA exists)
     if (bestCbsa?.geoid) {
       const cbsa = String(bestCbsa.geoid);
       const metroEntityId = `METRO${cbsa}M${cbsa}`;
+      entityIdUsed = metroEntityId;
 
       try {
         const metroJson = await hudGet(`${HUD_FMR_BASE}/data/${metroEntityId}`);
         const data = metroJson?.data;
 
         areaName = data?.area_name || data?.metro_name || null;
-
         const key = bedroomKey(bedrooms);
 
-        // SAFMR metro returns an array in basicdata with ZIP entries
         if (String(data?.smallarea_status) === "1" && Array.isArray(data?.basicdata)) {
           source = "SAFMR";
           const zipRow =
@@ -107,14 +115,14 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Could not map ZIP to county/metro" }, { status: 404 });
       }
 
-      const countyGeoid = String(bestCounty.geoid); // 5-digit
+      const countyGeoid = String(bestCounty.geoid);
       const countyEntityId = `${countyGeoid}99999`;
+      entityIdUsed = countyEntityId;
 
       const countyFmrJson = await hudGet(`${HUD_FMR_BASE}/data/${countyEntityId}`);
       const data = countyFmrJson?.data;
 
       areaName = data?.county_name || null;
-
       const key = bedroomKey(bedrooms);
       rent = data?.basicdata ? Number(data.basicdata[key]) : null;
       source = "FMR_COUNTY";
@@ -123,40 +131,20 @@ export async function GET(req: Request) {
     if (!rent || Number.isNaN(rent)) {
       return NextResponse.json({ error: "Rent not found" }, { status: 404 });
     }
-    const ddbClient = DynamoDBDocumentClient.from(
-        new DynamoDBClient({ region: process.env.AWS_REGION })
-      );
-      
-      const tableName = process.env.DDB_TABLE_HUD_LOOKUPS;
-      
-      async function logLookup(item: any) {
-        if (!tableName) return;
-      
-        await ddbClient.send(
-          new PutCommand({
-            TableName: tableName,
-            Item: item,
-          })
-        );
-      }
-      
-      await logLookup({
-        pk: `ZIP#${zip}`,
-        sk: new Date().toISOString(),
-        zip,
-        bedrooms,
-        rent,
-        source,
-        areaName,
-      });
 
-    return NextResponse.json({
+    // Analytics log (best effort)
+    await logLookup({
+      pk: `ZIP#${zip}`,
+      sk: new Date().toISOString(),
       zip,
       bedrooms,
       rent,
       source,
       areaName,
+      entityIdUsed,
     });
+
+    return NextResponse.json({ zip, bedrooms, rent, source, areaName });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Server error" }, { status: 500 });
   }
