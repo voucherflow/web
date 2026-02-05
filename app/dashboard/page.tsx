@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { getRecentHudLookups } from "@/lib/hudLookups";
 
 export default async function DashboardPage() {

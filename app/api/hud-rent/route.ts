@@ -133,16 +133,30 @@ export async function GET(req: Request) {
     }
 
     // Analytics log (best effort)
+    const now = new Date().toISOString();
+
+    const baseItem = {
+    sk: now,
+    zip,
+    bedrooms,
+    rent,
+    source,
+    areaName,
+    entityIdUsed,
+    };
+
+    // A) Global history (dashboard)
     await logLookup({
-      pk: `ZIP#${zip}`,
-      sk: new Date().toISOString(),
-      zip,
-      bedrooms,
-      rent,
-      source,
-      areaName,
-      entityIdUsed,
+    pk: "LOOKUP",
+    ...baseItem,
     });
+
+    // B) ZIP history (future ZIP Insights page)
+    await logLookup({
+    pk: `ZIP#${zip}`,
+    ...baseItem,
+    });
+
 
     return NextResponse.json({ zip, bedrooms, rent, source, areaName });
   } catch (e: any) {
