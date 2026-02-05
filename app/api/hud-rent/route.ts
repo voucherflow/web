@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+
 
 const HUD_FMR_BASE = "https://www.huduser.gov/hudapi/public/fmr";
 const HUD_USPS_BASE = "https://www.huduser.gov/hudapi/public/usps";
@@ -120,6 +123,32 @@ export async function GET(req: Request) {
     if (!rent || Number.isNaN(rent)) {
       return NextResponse.json({ error: "Rent not found" }, { status: 404 });
     }
+    const ddbClient = DynamoDBDocumentClient.from(
+        new DynamoDBClient({ region: process.env.AWS_REGION })
+      );
+      
+      const tableName = process.env.DDB_TABLE_HUD_LOOKUPS;
+      
+      async function logLookup(item: any) {
+        if (!tableName) return;
+      
+        await ddbClient.send(
+          new PutCommand({
+            TableName: tableName,
+            Item: item,
+          })
+        );
+      }
+      
+      await logLookup({
+        pk: `ZIP#${zip}`,
+        sk: new Date().toISOString(),
+        zip,
+        bedrooms,
+        rent,
+        source,
+        areaName,
+      });
 
     return NextResponse.json({
       zip,
