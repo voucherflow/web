@@ -26,13 +26,13 @@ export default function HudRentPage() {
             placeholder="ZIP Code"
             value={zip}
             onChange={(e) => setZip(e.target.value)}
-            className="rounded-lg border p-2"
+            className="rounded-lg text-gray-600 border p-2"
           />
 
           <select
             value={bedrooms}
             onChange={(e) => setBedrooms(e.target.value)}
-            className="rounded-lg border p-2"
+            className="rounded-lg border p-2 text-gray-600"
           >
             <option value="1">1 Bedroom</option>
             <option value="2">2 Bedrooms</option>
@@ -49,7 +49,7 @@ export default function HudRentPage() {
         </button>
 
         {result && (
-          <div className="mt-6 rounded-lg bg-gray-100 p-4">
+          <div className="mt-6 rounded-lg bg-gray-900 p-4">
             <p className="text-lg font-semibold">
               Estimated Voucher Rent: ${result.toLocaleString()}
             </p>
