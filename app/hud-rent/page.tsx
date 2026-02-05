@@ -6,11 +6,20 @@ export default function HudRentPage() {
   const [bedrooms, setBedrooms] = useState("1");
   const [result, setResult] = useState<number | null>(null);
 
-  const handleLookup = () => {
-    // Mock result for now
-    const mockRent = 950 + Number(bedrooms) * 150;
-    setResult(mockRent);
+  const handleLookup = async () => {
+    setResult(null);
+  
+    const res = await fetch(`/api/hud-rent?zip=${zip}&bedrooms=${bedrooms}`);
+    const json = await res.json();
+  
+    if (!res.ok) {
+      alert(json?.error || "Lookup failed");
+      return;
+    }
+  
+    setResult(json.rent);
   };
+  
 
   return (
     <div className="space-y-6">
