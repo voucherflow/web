@@ -1,39 +1,81 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+"use client";
 
-import { getZipLookups } from "@/lib/zipInsights";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+type ZipItem = {
+  pk: string;
+  sk: string;
+  zip: string;
+  bedrooms: number;
+  rent: number;
+  source: string;
+  areaName?: string | null;
+};
 
 function avg(nums: number[]) {
   if (nums.length === 0) return null;
   return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
 }
 
-export default async function ZipInsightsPage({
-  searchParams,
-}: {
-  searchParams: { zip?: string };
-}) {
-  const zip = (searchParams.zip || "").trim();
-  const isZip = /^\d{5}$/.test(zip);
+export default function ZipInsightsPage() {
+  const router = useRouter();
+  const sp = useSearchParams();
 
-  const lookups = isZip ? await getZipLookups(zip, 20) : [];
+  const urlZip = (sp.get("zip") || "").trim();
+  const [zip, setZip] = useState(urlZip);
+  const [items, setItems] = useState<ZipItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const byBeds = new Map<number, number[]>();
-  for (const x of lookups) {
-    const beds = Number(x.bedrooms);
-    const rent = Number(x.rent);
-    if (!byBeds.has(beds)) byBeds.set(beds, []);
-    byBeds.get(beds)!.push(rent);
-  }
+  const isZip = /^\d{5}$/.test(urlZip);
 
-  const bedStats = Array.from(byBeds.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([beds, rents]) => ({
-      beds,
-      avgRent: avg(rents),
-      latestRent: rents[0] ?? null, // because results are newest-first
-      samples: rents.length,
-    }));
+  useEffect(() => {
+    setZip(urlZip);
+  }, [urlZip]);
+
+  useEffect(() => {
+    const run = async () => {
+      setError(null);
+      setItems([]);
+
+      if (!isZip) return;
+
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/zip-lookups?zip=${urlZip}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Failed to load lookups");
+
+        setItems(json.items || []);
+      } catch (e: any) {
+        setError(e.message || "Error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    run();
+  }, [urlZip, isZip]);
+
+  const stats = useMemo(() => {
+    const byBeds = new Map<number, number[]>();
+    for (const x of items) {
+      const beds = Number(x.bedrooms);
+      const rent = Number(x.rent);
+      if (!byBeds.has(beds)) byBeds.set(beds, []);
+      byBeds.get(beds)!.push(rent);
+    }
+
+    return Array.from(byBeds.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([beds, rents]) => ({
+        beds,
+        latestRent: rents[0] ?? null,
+        avgRent: avg(rents),
+        samples: rents.length,
+      }));
+  }, [items]);
 
   return (
     <div className="space-y-6">
@@ -43,34 +85,43 @@ export default async function ZipInsightsPage({
           Explore your lookup history for a ZIP code and see quick rent trends.
         </p>
 
-        <form className="mt-5 flex flex-wrap gap-3" action="/zip-insights" method="get">
+        <div className="mt-5 flex flex-wrap gap-3">
           <input
-            name="zip"
-            defaultValue={zip}
+            value={zip}
+            onChange={(e) => setZip(e.target.value)}
             placeholder="Enter ZIP (e.g., 39339)"
             className="w-60 rounded-lg border border-gray-300 bg-white p-2 text-gray-900"
           />
-          <button className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90">
+          <button
+            type="button"
+            onClick={() => router.push(`/zip-insights?zip=${encodeURIComponent(zip.trim())}`)}
+            className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90"
+          >
             View Insights
           </button>
-        </form>
+        </div>
 
-        {!zip ? (
+        {!urlZip ? (
           <p className="mt-4 text-gray-600">Enter a ZIP to see insights.</p>
         ) : !isZip ? (
           <p className="mt-4 text-red-600">ZIP must be 5 digits.</p>
+        ) : loading ? (
+          <p className="mt-4 text-gray-600">Loading…</p>
+        ) : error ? (
+          <p className="mt-4 text-red-600">{error}</p>
         ) : (
           <p className="mt-4 text-gray-600">
-            Showing latest {lookups.length} lookups for <span className="font-semibold">{zip}</span>.
+            Showing latest {items.length} lookups for{" "}
+            <span className="font-semibold">{urlZip}</span>.
           </p>
         )}
       </div>
 
-      {isZip && bedStats.length > 0 && (
+      {isZip && stats.length > 0 && (
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Quick Stats</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
-            {bedStats.map((s) => (
+            {stats.map((s) => (
               <div key={s.beds} className="rounded-xl border border-gray-200 p-4">
                 <div className="text-sm text-gray-600">{s.beds} Beds</div>
                 <div className="mt-2 text-xl font-bold">
@@ -89,7 +140,7 @@ export default async function ZipInsightsPage({
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Recent Lookups</h2>
 
-          {lookups.length === 0 ? (
+          {items.length === 0 && !loading ? (
             <p className="mt-4 text-gray-700">
               No lookups logged for this ZIP yet. Run a HUD Rent Lookup first.
             </p>
@@ -106,7 +157,7 @@ export default async function ZipInsightsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {lookups.map((x) => (
+                  {items.map((x) => (
                     <tr key={`${x.pk}-${x.sk}`} className="border-b">
                       <td className="py-2 pr-4">{new Date(x.sk).toLocaleString()}</td>
                       <td className="py-2 pr-4">{x.bedrooms}</td>
