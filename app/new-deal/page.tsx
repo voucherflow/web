@@ -16,6 +16,19 @@ export default function NewDealPage() {
 
   const update = (k: string, v: any) => setForm({ ...form, [k]: v });
 
+  // ✅ Save deal to DynamoDB
+  const saveDeal = async (memoText: string, hudRent: number) => {
+    await fetch("/api/deals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        hudRent,
+        memo: memoText,
+      }),
+    });
+  };
+
   const generateMemo = async () => {
     setLoading(true);
     setMemo("");
@@ -43,6 +56,10 @@ export default function NewDealPage() {
       if (!memoRes.ok) throw new Error(memoJson.error);
 
       setMemo(memoJson.memo);
+
+      // 3. Save deal AFTER memo is generated
+      await saveDeal(memoJson.memo, rentJson.rent);
+
     } catch (e: any) {
       setMemo("Error: " + e.message);
     } finally {
@@ -59,11 +76,35 @@ export default function NewDealPage() {
         </p>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <input placeholder="ZIP" onChange={(e) => update("zip", e.target.value)} className="input" />
-          <input type="number" placeholder="Bedrooms" onChange={(e) => update("bedrooms", Number(e.target.value))} className="input" />
-          <input type="number" placeholder="Purchase Price" onChange={(e) => update("purchasePrice", e.target.value)} className="input" />
-          <input type="number" placeholder="Rehab Cost" onChange={(e) => update("rehabCost", e.target.value)} className="input" />
-          <input type="number" placeholder="ARV" onChange={(e) => update("arv", e.target.value)} className="input" />
+          <input
+            placeholder="ZIP"
+            onChange={(e) => update("zip", e.target.value)}
+            className="input"
+          />
+          <input
+            type="number"
+            placeholder="Bedrooms"
+            onChange={(e) => update("bedrooms", Number(e.target.value))}
+            className="input"
+          />
+          <input
+            type="number"
+            placeholder="Purchase Price"
+            onChange={(e) => update("purchasePrice", e.target.value)}
+            className="input"
+          />
+          <input
+            type="number"
+            placeholder="Rehab Cost"
+            onChange={(e) => update("rehabCost", e.target.value)}
+            className="input"
+          />
+          <input
+            type="number"
+            placeholder="ARV"
+            onChange={(e) => update("arv", e.target.value)}
+            className="input"
+          />
         </div>
 
         <button
