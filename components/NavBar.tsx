@@ -7,6 +7,7 @@ const navItems = [
   { href: "/inspection", label: "Inspection Readiness" },
   { href: "/resources", label: "Resources" },
   { href: "/zip-insights", label: "ZIP Insights" },
+  { href: "/assistant", label: "Assistant" },
 ];
 
 export default function NavBar() {
