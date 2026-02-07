@@ -8,6 +8,7 @@ const navItems = [
   { href: "/new-deal", label: "New Deal" },
   { href: "/hud-rent", label: "HUD Rent Lookup" },
   { href: "/inspection", label: "Inspection Readiness" },
+  { href: "/inspection-reports", label: "Inspection Reports" },
   { href: "/resources", label: "Resources" },
   { href: "/zip-insights", label: "ZIP Insights" },
   { href: "/assistant", label: "Assistant" },

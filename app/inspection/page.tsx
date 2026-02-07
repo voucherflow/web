@@ -121,7 +121,7 @@ export default function InspectionReadinessPage() {
     setReport("");
 
     try {
-      const res = await fetch("/api/inspection-report", {
+      const res = await fetch("/api/inspection-precheck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ score, answers, notes }),
@@ -131,6 +131,18 @@ export default function InspectionReadinessPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to generate report");
 
       setReport(data.report);
+
+      await fetch("/api/inspection-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          score,
+          answers,
+          notes,
+          aiReport: data.report,
+        }),
+      });
+      
     } catch (e: any) {
       setError(e?.message || "Client error");
     } finally {
