@@ -272,12 +272,12 @@ export default function DealDetail() {
 
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Underwriting Assumptions</h2>
-        <button onClick={saveAssumptions} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
-        Save assumptions
-        </button>
         <p className="mt-1 text-sm text-gray-600">
           Adjust assumptions to estimate NOI, cap rate, and cashflow.
         </p>
+        <button onClick={saveAssumptions} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
+        Save assumptions
+        </button>
 
         <div className="mt-4 grid gap-3 md:grid-cols-4 text-sm">
           <label className="space-y-1">
