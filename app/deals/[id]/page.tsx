@@ -38,6 +38,7 @@ export default function DealDetail() {
         }
 
         setDeal(data);
+        if (data?.assumptions) setAssumptions(data.assumptions);
       } catch (e: any) {
         setError(e?.message || "Client error");
         setDeal(null);
@@ -85,6 +86,25 @@ export default function DealDetail() {
 
     doc.save(`VoucherFlow_Deal_${deal.zip}_${deal.dealId}.pdf`);
   };
+
+  const saveAssumptions = async () => {
+    if (!id) return;
+  
+    const res = await fetch(`/api/deals/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assumptions }),
+    });
+  
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data?.error || "Failed to save assumptions");
+      return;
+    }
+  
+    alert("Saved ✅");
+  };
+  
 
   const deleteDeal = async () => {
     if (!id) return;
@@ -252,6 +272,9 @@ export default function DealDetail() {
 
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Underwriting Assumptions</h2>
+        <button onClick={saveAssumptions} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
+        Save assumptions
+        </button>
         <p className="mt-1 text-sm text-gray-600">
           Adjust assumptions to estimate NOI, cap rate, and cashflow.
         </p>

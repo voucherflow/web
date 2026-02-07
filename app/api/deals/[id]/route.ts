@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  DeleteCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
 
 const ddb = DynamoDBDocumentClient.from(
   new DynamoDBClient({ region: process.env.AWS_REGION })
@@ -43,6 +48,47 @@ export async function GET(
     }
 
     return NextResponse.json(result.Item);
+  } catch (e: any) {
+    const msg = e?.message || "Server error";
+    const status = msg === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: msg }, { status });
+  }
+}
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const userId = await requireUser();
+    const { id } = await params;
+    const body = await req.json();
+
+    // Only allow updating assumptions for now
+    const assumptions = body?.assumptions;
+    if (!assumptions || typeof assumptions !== "object") {
+      return NextResponse.json(
+        { error: "Missing assumptions object" },
+        { status: 400 }
+      );
+    }
+
+    const pk = `USER#${userId}`;
+    const sk = `DEAL#${id}`;
+
+    await ddb.send(
+      new UpdateCommand({
+        TableName: requireTable(),
+        Key: { pk, sk },
+        UpdateExpression: "SET assumptions = :a, updatedAt = :u",
+        ExpressionAttributeValues: {
+          ":a": assumptions,
+          ":u": new Date().toISOString(),
+        },
+      })
+    );
+
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     const msg = e?.message || "Server error";
     const status = msg === "Unauthorized" ? 401 : 500;
