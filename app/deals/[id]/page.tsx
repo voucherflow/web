@@ -9,13 +9,36 @@ export default function DealDetail() {
   const id = params?.id as string;
 
   const [deal, setDeal] = useState<any>(null);
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
     if (!id) return;
 
-    fetch("/api/deals")
-      .then((r) => r.json())
-      .then((items) => setDeal(items.find((d: any) => d.dealId === id)));
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/deals/${id}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data?.error || "Failed to load deal");
+          setDeal(null);
+          return;
+        }
+
+        if (data?.error) {
+          setError(data.error);
+          setDeal(null);
+          return;
+        }
+
+        setDeal(data);
+      } catch (e: any) {
+        setError(e?.message || "Client error");
+        setDeal(null);
+      }
+    };
+
+    load();
   }, [id]);
 
   const exportPdf = () => {
@@ -30,11 +53,16 @@ export default function DealDetail() {
     y += 10;
 
     doc.setFontSize(11);
-    doc.text(`ZIP: ${deal.zip}   Bedrooms: ${deal.bedrooms}`, 14, y); y += lineHeight;
-    doc.text(`Purchase: $${Number(deal.purchasePrice).toLocaleString()}`, 14, y); y += lineHeight;
-    doc.text(`Rehab: $${Number(deal.rehabCost).toLocaleString()}`, 14, y); y += lineHeight;
-    doc.text(`ARV: $${Number(deal.arv).toLocaleString()}`, 14, y); y += lineHeight;
-    doc.text(`HUD Rent: $${Number(deal.hudRent).toLocaleString()}/mo`, 14, y); y += 10;
+    doc.text(`ZIP: ${deal.zip}   Bedrooms: ${deal.bedrooms}`, 14, y);
+    y += lineHeight;
+    doc.text(`Purchase: $${Number(deal.purchasePrice).toLocaleString()}`, 14, y);
+    y += lineHeight;
+    doc.text(`Rehab: $${Number(deal.rehabCost).toLocaleString()}`, 14, y);
+    y += lineHeight;
+    doc.text(`ARV: $${Number(deal.arv).toLocaleString()}`, 14, y);
+    y += lineHeight;
+    doc.text(`HUD Rent: $${Number(deal.hudRent).toLocaleString()}/mo`, 14, y);
+    y += 10;
 
     doc.setFontSize(12);
     doc.text("AI Memo:", 14, y);
@@ -48,6 +76,7 @@ export default function DealDetail() {
     doc.save(`VoucherFlow_Deal_${deal.zip}_${deal.dealId}.pdf`);
   };
 
+  if (error) return <p className="text-red-600">Error: {error}</p>;
   if (!deal) return <p>Loading…</p>;
 
   return (
@@ -69,22 +98,30 @@ export default function DealDetail() {
         <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm">
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">Purchase</div>
-            <div className="font-semibold">${Number(deal.purchasePrice).toLocaleString()}</div>
+            <div className="font-semibold">
+              ${Number(deal.purchasePrice).toLocaleString()}
+            </div>
           </div>
 
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">Rehab</div>
-            <div className="font-semibold">${Number(deal.rehabCost).toLocaleString()}</div>
+            <div className="font-semibold">
+              ${Number(deal.rehabCost).toLocaleString()}
+            </div>
           </div>
 
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">ARV</div>
-            <div className="font-semibold">${Number(deal.arv).toLocaleString()}</div>
+            <div className="font-semibold">
+              ${Number(deal.arv).toLocaleString()}
+            </div>
           </div>
 
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">HUD Rent</div>
-            <div className="font-semibold">${Number(deal.hudRent).toLocaleString()}/mo</div>
+            <div className="font-semibold">
+              ${Number(deal.hudRent).toLocaleString()}/mo
+            </div>
           </div>
         </div>
       </div>
