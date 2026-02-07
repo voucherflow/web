@@ -23,6 +23,14 @@ export default function DealDetail() {
     hoaMonthly: 0,
     debtServiceMonthly: 0, // optional: mortgage payment
   });
+  const [loan, setLoan] = useState({
+    downPct: 20,
+    ratePct: 7.5,
+    termYears: 30,
+    includeRehabInLoan: false, // flip this on if you want purchase+rehab financed
+    loanAmountOverride: 0, // if > 0, use this instead
+  });
+  
   
 
 
@@ -163,6 +171,18 @@ export default function DealDetail() {
     router.push("/deals");
   };
 
+  const monthlyPayment = (principal: number, annualRatePct: number, years: number) => {
+    const r = (annualRatePct / 100) / 12;
+    const n = years * 12;
+  
+    if (principal <= 0 || years <= 0) return 0;
+    if (r === 0) return principal / n;
+  
+    const pow = Math.pow(1 + r, n);
+    return principal * (r * pow) / (pow - 1);
+  };
+  
+
   if (error) return <p className="text-red-600">Error: {error}</p>;
   if (!deal) return <p>Loading…</p>;
 
@@ -172,6 +192,14 @@ export default function DealDetail() {
   const rent = Number(deal.hudRent || 0);
 
   const totalInvestment = purchase + rehab;
+  const baseLoanTarget = loan.includeRehabInLoan ? totalInvestment : purchase;
+  const downPayment = baseLoanTarget * (loan.downPct / 100);
+  const calculatedLoanAmount = Math.max(baseLoanTarget - downPayment, 0);
+
+  const loanAmount = loan.loanAmountOverride > 0 ? Number(loan.loanAmountOverride) : calculatedLoanAmount;
+
+  const piMonthly = monthlyPayment(loanAmount, loan.ratePct, loan.termYears);
+ 
   const annualRent = rent * 12;
 
   const vacancyLoss = annualRent * (assumptions.vacancyPct / 100);
@@ -197,6 +225,7 @@ export default function DealDetail() {
   const cashflowMonthly = cashflowAnnual / 12;
 
   const dscr = debtServiceAnnual > 0 ? noiAnnual / debtServiceAnnual : null;
+
 
 
   const onePercentRule = totalInvestment > 0 ? rent / totalInvestment >= 0.01 : false;
@@ -406,6 +435,99 @@ export default function DealDetail() {
             />
           </label>
         </div>
+        <div className="mt-6 rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+            <div className="font-semibold">Loan Calculator (P&I)</div>
+            <div className="text-xs text-gray-500">
+                Use this to auto-fill Debt Service for cashflow + DSCR.
+            </div>
+            </div>
+
+            <button
+            type="button"
+            onClick={() =>
+                setAssumptions((a) => ({ ...a, debtServiceMonthly: Math.round(piMonthly) }))
+            }
+            className="rounded-lg bg-black px-3 py-2 text-sm text-white hover:opacity-90"
+            >
+            Use as Debt Service
+            </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-5 text-sm">
+            <label className="space-y-1">
+            <div className="text-gray-600">Down %</div>
+            <input
+                type="number"
+                className="input"
+                value={loan.downPct}
+                onChange={(e) => setLoan({ ...loan, downPct: Number(e.target.value) })}
+            />
+            </label>
+
+            <label className="space-y-1">
+            <div className="text-gray-600">Rate %</div>
+            <input
+                type="number"
+                step="0.1"
+                className="input"
+                value={loan.ratePct}
+                onChange={(e) => setLoan({ ...loan, ratePct: Number(e.target.value) })}
+            />
+            </label>
+
+            <label className="space-y-1">
+            <div className="text-gray-600">Term (yrs)</div>
+            <input
+                type="number"
+                className="input"
+                value={loan.termYears}
+                onChange={(e) => setLoan({ ...loan, termYears: Number(e.target.value) })}
+            />
+            </label>
+
+            <label className="space-y-1">
+            <div className="text-gray-600">Loan Override</div>
+            <input
+                type="number"
+                className="input"
+                value={loan.loanAmountOverride}
+                onChange={(e) => setLoan({ ...loan, loanAmountOverride: Number(e.target.value) })}
+                placeholder="0 = auto"
+            />
+            </label>
+
+            <label className="space-y-1">
+            <div className="text-gray-600">Include rehab?</div>
+            <select
+                className="input"
+                value={loan.includeRehabInLoan ? "yes" : "no"}
+                onChange={(e) => setLoan({ ...loan, includeRehabInLoan: e.target.value === "yes" })}
+            >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+            </select>
+            </label>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm">
+            <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Loan Amount</div>
+            <div className="font-semibold">{fmtMoney(loanAmount)}</div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Down Payment</div>
+            <div className="font-semibold">{fmtMoney(downPayment)}</div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">P&I (Monthly)</div>
+            <div className="font-semibold">{fmtMoney(piMonthly)}</div>
+            </div>
+        </div>
+        </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-4 text-sm">
           <div className="rounded-xl border border-gray-200 p-4">
@@ -431,7 +553,7 @@ export default function DealDetail() {
             <div className="mt-1 text-xs text-gray-500">NOI ÷ Debt Service</div>
           </div>
         </div>
-
+        
         <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
           <div className="font-semibold mb-1">Expense Breakdown (annual)</div>
           <div>Vacancy: {fmtMoney(vacancyLoss)}</div>
