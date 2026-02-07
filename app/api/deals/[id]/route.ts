@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
 const ddb = DynamoDBDocumentClient.from(
   new DynamoDBClient({ region: process.env.AWS_REGION })
@@ -43,6 +43,32 @@ export async function GET(
     }
 
     return NextResponse.json(result.Item);
+  } catch (e: any) {
+    const msg = e?.message || "Server error";
+    const status = msg === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: msg }, { status });
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const userId = await requireUser();
+    const { id } = await params;
+
+    const pk = `USER#${userId}`;
+    const sk = `DEAL#${id}`;
+
+    await ddb.send(
+      new DeleteCommand({
+        TableName: requireTable(),
+        Key: { pk, sk },
+      })
+    );
+
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     const msg = e?.message || "Server error";
     const status = msg === "Unauthorized" ? 401 : 500;

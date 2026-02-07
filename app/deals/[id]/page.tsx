@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 
 export default function DealDetail() {
   const params = useParams();
+  const router = useRouter();
   const id = params?.id as string;
 
   const [deal, setDeal] = useState<any>(null);
@@ -21,12 +22,6 @@ export default function DealDetail() {
 
         if (!res.ok) {
           setError(data?.error || "Failed to load deal");
-          setDeal(null);
-          return;
-        }
-
-        if (data?.error) {
-          setError(data.error);
           setDeal(null);
           return;
         }
@@ -53,16 +48,11 @@ export default function DealDetail() {
     y += 10;
 
     doc.setFontSize(11);
-    doc.text(`ZIP: ${deal.zip}   Bedrooms: ${deal.bedrooms}`, 14, y);
-    y += lineHeight;
-    doc.text(`Purchase: $${Number(deal.purchasePrice).toLocaleString()}`, 14, y);
-    y += lineHeight;
-    doc.text(`Rehab: $${Number(deal.rehabCost).toLocaleString()}`, 14, y);
-    y += lineHeight;
-    doc.text(`ARV: $${Number(deal.arv).toLocaleString()}`, 14, y);
-    y += lineHeight;
-    doc.text(`HUD Rent: $${Number(deal.hudRent).toLocaleString()}/mo`, 14, y);
-    y += 10;
+    doc.text(`ZIP: ${deal.zip}   Bedrooms: ${deal.bedrooms}`, 14, y); y += lineHeight;
+    doc.text(`Purchase: $${Number(deal.purchasePrice).toLocaleString()}`, 14, y); y += lineHeight;
+    doc.text(`Rehab: $${Number(deal.rehabCost).toLocaleString()}`, 14, y); y += lineHeight;
+    doc.text(`ARV: $${Number(deal.arv).toLocaleString()}`, 14, y); y += lineHeight;
+    doc.text(`HUD Rent: $${Number(deal.hudRent).toLocaleString()}/mo`, 14, y); y += 10;
 
     doc.setFontSize(12);
     doc.text("AI Memo:", 14, y);
@@ -71,9 +61,35 @@ export default function DealDetail() {
     doc.setFontSize(10);
     const memoText = String(deal.memo || "");
     const lines = doc.splitTextToSize(memoText, 180);
-    doc.text(lines, 14, y);
+
+    // Multi-page support
+    for (let i = 0; i < lines.length; i++) {
+      if (y > 280) {
+        doc.addPage();
+        y = 15;
+      }
+      doc.text(lines[i], 14, y);
+      y += 5;
+    }
 
     doc.save(`VoucherFlow_Deal_${deal.zip}_${deal.dealId}.pdf`);
+  };
+
+  const deleteDeal = async () => {
+    if (!id) return;
+
+    const ok = window.confirm("Delete this deal? This cannot be undone.");
+    if (!ok) return;
+
+    const res = await fetch(`/api/deals/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data?.error || "Failed to delete deal");
+      return;
+    }
+
+    router.push("/deals");
   };
 
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -87,41 +103,42 @@ export default function DealDetail() {
             Deal — {deal.zip} • {deal.bedrooms}BR
           </h1>
 
-          <button
-            onClick={exportPdf}
-            className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90"
-          >
-            Export PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportPdf}
+              className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90"
+            >
+              Export PDF
+            </button>
+
+            <button
+              onClick={deleteDeal}
+              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-red-700 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm">
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">Purchase</div>
-            <div className="font-semibold">
-              ${Number(deal.purchasePrice).toLocaleString()}
-            </div>
+            <div className="font-semibold">${Number(deal.purchasePrice).toLocaleString()}</div>
           </div>
 
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">Rehab</div>
-            <div className="font-semibold">
-              ${Number(deal.rehabCost).toLocaleString()}
-            </div>
+            <div className="font-semibold">${Number(deal.rehabCost).toLocaleString()}</div>
           </div>
 
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">ARV</div>
-            <div className="font-semibold">
-              ${Number(deal.arv).toLocaleString()}
-            </div>
+            <div className="font-semibold">${Number(deal.arv).toLocaleString()}</div>
           </div>
 
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="text-gray-600">HUD Rent</div>
-            <div className="font-semibold">
-              ${Number(deal.hudRent).toLocaleString()}/mo
-            </div>
+            <div className="font-semibold">${Number(deal.hudRent).toLocaleString()}/mo</div>
           </div>
         </div>
       </div>
