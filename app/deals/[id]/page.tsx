@@ -50,6 +50,7 @@ export default function DealDetail() {
 
         setDeal(data);
         if (data?.assumptions) setAssumptions(data.assumptions);
+        if (data?.loan) setLoan(data.loan);
         setHydrated(true);
       } catch (e: any) {
         setError(e?.message || "Client error");
@@ -119,8 +120,8 @@ export default function DealDetail() {
   
   useEffect(() => {
     if (!id) return;
-    if (!deal) return; // wait until deal is loaded
-    if (!hydrated) return;
+    if (!deal) return;
+    if (!hydrated) return; // prevents save on initial load
   
     const timer = setTimeout(async () => {
       try {
@@ -129,7 +130,7 @@ export default function DealDetail() {
         const res = await fetch(`/api/deals/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ assumptions }),
+          body: JSON.stringify({ assumptions, loan }),
         });
   
         const data = await res.json().catch(() => ({}));
@@ -141,8 +142,6 @@ export default function DealDetail() {
         }
   
         setSaveState("saved");
-  
-        // return to idle after a moment
         setTimeout(() => setSaveState("idle"), 1200);
       } catch (e) {
         console.error("Autosave error:", e);
@@ -151,7 +150,8 @@ export default function DealDetail() {
     }, 1000);
   
     return () => clearTimeout(timer);
-  }, [assumptions, id, deal]);
+  }, [assumptions, loan, id, deal, hydrated]);
+  
   
 
   const deleteDeal = async () => {

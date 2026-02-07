@@ -56,45 +56,56 @@ export async function GET(
 }
 
 export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const userId = await requireUser();
-    const { id } = await params;
-    const body = await req.json();
-
-    // Only allow updating assumptions for now
-    const assumptions = body?.assumptions;
-    if (!assumptions || typeof assumptions !== "object") {
-      return NextResponse.json(
-        { error: "Missing assumptions object" },
-        { status: 400 }
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ) {
+    try {
+      const userId = await requireUser();
+      const { id } = await params;
+      const body = await req.json();
+  
+      const hasAssumptions = body?.assumptions && typeof body.assumptions === "object";
+      const hasLoan = body?.loan && typeof body.loan === "object";
+  
+      if (!hasAssumptions && !hasLoan) {
+        return NextResponse.json(
+          { error: "Provide assumptions and/or loan object" },
+          { status: 400 }
+        );
+      }
+  
+      const pk = `USER#${userId}`;
+      const sk = `DEAL#${id}`;
+  
+      const sets: string[] = ["updatedAt = :u"];
+      const values: Record<string, any> = { ":u": new Date().toISOString() };
+  
+      if (hasAssumptions) {
+        sets.push("assumptions = :a");
+        values[":a"] = body.assumptions;
+      }
+      if (hasLoan) {
+        sets.push("loan = :l");
+        values[":l"] = body.loan;
+      }
+  
+      await ddb.send(
+        new UpdateCommand({
+          TableName: requireTable(),
+          Key: { pk, sk },
+          UpdateExpression: `SET ${sets.join(", ")}`,
+          ExpressionAttributeValues: values,
+        })
       );
+  
+      return NextResponse.json({ ok: true });
+    } catch (e: any) {
+      const msg = e?.message || "Server error";
+      const status = msg === "Unauthorized" ? 401 : 500;
+      return NextResponse.json({ error: msg }, { status });
     }
-
-    const pk = `USER#${userId}`;
-    const sk = `DEAL#${id}`;
-
-    await ddb.send(
-      new UpdateCommand({
-        TableName: requireTable(),
-        Key: { pk, sk },
-        UpdateExpression: "SET assumptions = :a, updatedAt = :u",
-        ExpressionAttributeValues: {
-          ":a": assumptions,
-          ":u": new Date().toISOString(),
-        },
-      })
-    );
-
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    const msg = e?.message || "Server error";
-    const status = msg === "Unauthorized" ? 401 : 500;
-    return NextResponse.json({ error: msg }, { status });
   }
-}
+  
 
 export async function DELETE(
   _req: Request,
