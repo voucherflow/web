@@ -95,6 +95,22 @@ export default function DealDetail() {
   if (error) return <p className="text-red-600">Error: {error}</p>;
   if (!deal) return <p>Loading…</p>;
 
+  const purchase = Number(deal.purchasePrice || 0);
+  const rehab = Number(deal.rehabCost || 0);
+  const arv = Number(deal.arv || 0);
+  const rent = Number(deal.hudRent || 0);
+
+  const totalInvestment = purchase + rehab;
+  const annualRent = rent * 12;
+
+  const onePercentRule = totalInvestment > 0 ? rent / totalInvestment >= 0.01 : false;
+  const rehabPct = purchase > 0 ? (rehab / purchase) * 100 : 0;
+  const rentToPricePct = purchase > 0 ? (rent / purchase) * 100 : 0;
+  const simpleRoiPct = totalInvestment > 0 ? (annualRent / totalInvestment) * 100 : 0;
+
+  const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString()}`;
+  const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -143,6 +159,62 @@ export default function DealDetail() {
         </div>
       </div>
 
+      <div className="rounded-2xl bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">Deal Summary</h2>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm">
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Total Investment</div>
+            <div className="font-semibold">{fmtMoney(totalInvestment)}</div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Gross Rent (Annual)</div>
+            <div className="font-semibold">{fmtMoney(annualRent)}</div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Simple ROI (Gross)</div>
+            <div className="font-semibold">{fmtPct(simpleRoiPct)}</div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">1% Rule</div>
+            <div className={`font-semibold ${onePercentRule ? "text-green-700" : "text-red-700"}`}>
+              {onePercentRule ? "Pass" : "Fail"}
+            </div>
+            <div className="mt-1 text-xs text-gray-500">
+              Rent ÷ Total Investment ≥ 1%
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Rehab % of Purchase</div>
+            <div className="font-semibold">{fmtPct(rehabPct)}</div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-4">
+            <div className="text-gray-600">Rent-to-Price (Monthly)</div>
+            <div className="font-semibold">{fmtPct(rentToPricePct)}</div>
+          </div>
+        </div>
+
+        {arv > 0 && totalInvestment > 0 && (
+          <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+            <div className="font-semibold mb-1">Equity Snapshot (simple)</div>
+            <div>
+              ARV: <span className="font-semibold">{fmtMoney(arv)}</span> • Investment:{" "}
+              <span className="font-semibold">{fmtMoney(totalInvestment)}</span> • Spread:{" "}
+              <span className="font-semibold">{fmtMoney(arv - totalInvestment)}</span>
+            </div>
+            <div className="mt-1 text-xs text-gray-500">
+              This is a simplified spread (does not include holding, financing, closing costs, etc.).
+            </div>
+          </div>
+        )}
+      </div>
+
+      
       <div className="rounded-xl bg-white p-6 shadow whitespace-pre-wrap">
         <h2 className="text-lg font-semibold mb-3">AI Investment Memo</h2>
         {deal.memo}
