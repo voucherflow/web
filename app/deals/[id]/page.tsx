@@ -11,6 +11,8 @@ export default function DealDetail() {
 
   const [deal, setDeal] = useState<any>(null);
   const [error, setError] = useState<string>("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [hydrated, setHydrated] = useState(false);
   const [assumptions, setAssumptions] = useState({
     vacancyPct: 8,
     repairsPct: 8,
@@ -21,6 +23,7 @@ export default function DealDetail() {
     hoaMonthly: 0,
     debtServiceMonthly: 0, // optional: mortgage payment
   });
+  
 
 
   useEffect(() => {
@@ -39,6 +42,7 @@ export default function DealDetail() {
 
         setDeal(data);
         if (data?.assumptions) setAssumptions(data.assumptions);
+        setHydrated(true);
       } catch (e: any) {
         setError(e?.message || "Client error");
         setDeal(null);
@@ -104,6 +108,42 @@ export default function DealDetail() {
   
     alert("Saved ✅");
   };
+  
+  useEffect(() => {
+    if (!id) return;
+    if (!deal) return; // wait until deal is loaded
+    if (!hydrated) return;
+  
+    const timer = setTimeout(async () => {
+      try {
+        setSaveState("saving");
+  
+        const res = await fetch(`/api/deals/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assumptions }),
+        });
+  
+        const data = await res.json().catch(() => ({}));
+  
+        if (!res.ok) {
+          console.error("Autosave failed:", data?.error || res.statusText);
+          setSaveState("error");
+          return;
+        }
+  
+        setSaveState("saved");
+  
+        // return to idle after a moment
+        setTimeout(() => setSaveState("idle"), 1200);
+      } catch (e) {
+        console.error("Autosave error:", e);
+        setSaveState("error");
+      }
+    }, 1000);
+  
+    return () => clearTimeout(timer);
+  }, [assumptions, id, deal]);
   
 
   const deleteDeal = async () => {
@@ -275,6 +315,12 @@ export default function DealDetail() {
         <p className="mt-1 text-sm text-gray-600">
           Adjust assumptions to estimate NOI, cap rate, and cashflow.
         </p>
+        <div className="text-xs">
+            {saveState === "saving" && <span className="text-gray-600">Saving…</span>}
+            {saveState === "saved" && <span className="text-green-700">Saved</span>}
+            {saveState === "error" && <span className="text-red-700">Save failed</span>}
+        </div>
+
         <button onClick={saveAssumptions} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
         Save assumptions
         </button>
