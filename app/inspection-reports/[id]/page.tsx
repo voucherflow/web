@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 
 export default function InspectionReportDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params?.id as string;
 
   const [report, setReport] = useState<any>(null);
@@ -47,10 +48,15 @@ export default function InspectionReportDetailPage() {
     y += 10;
 
     doc.setFontSize(11);
-    doc.text(`Score: ${report.score}/100`, 14, y); y += lineHeight;
-    doc.text(`Created: ${report.createdAt ? new Date(report.createdAt).toLocaleString() : ""}`, 14, y); y += 10;
+    doc.text(`Score: ${report.score}/100`, 14, y);
+    y += lineHeight;
+    doc.text(
+      `Created: ${report.createdAt ? new Date(report.createdAt).toLocaleString() : ""}`,
+      14,
+      y
+    );
+    y += 10;
 
-    // Notes
     if (report.notes) {
       doc.setFontSize(12);
       doc.text("Notes:", 14, y);
@@ -62,7 +68,6 @@ export default function InspectionReportDetailPage() {
       y += noteLines.length * 5 + 6;
     }
 
-    // AI Report
     doc.setFontSize(12);
     doc.text("AI Pre-Inspection Report:", 14, y);
     y += 8;
@@ -71,7 +76,7 @@ export default function InspectionReportDetailPage() {
     const aiText = String(report.aiReport || "");
     const aiLines = doc.splitTextToSize(aiText, 180);
 
-    // Handle multi-page if needed
+    // Multi-page support
     for (let i = 0; i < aiLines.length; i++) {
       if (y > 280) {
         doc.addPage();
@@ -82,6 +87,23 @@ export default function InspectionReportDetailPage() {
     }
 
     doc.save(`VoucherFlow_Inspection_${report.reportId}.pdf`);
+  };
+
+  const deleteReport = async () => {
+    if (!id) return;
+
+    const ok = window.confirm("Delete this inspection report? This cannot be undone.");
+    if (!ok) return;
+
+    const res = await fetch(`/api/inspection-reports/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data?.error || "Failed to delete report");
+      return;
+    }
+
+    router.push("/inspection-reports");
   };
 
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -104,12 +126,21 @@ export default function InspectionReportDetailPage() {
             </p>
           </div>
 
-          <button
-            onClick={exportPdf}
-            className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90"
-          >
-            Export PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportPdf}
+              className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90"
+            >
+              Export PDF
+            </button>
+
+            <button
+              onClick={deleteReport}
+              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-red-700 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
         </div>
 
         {report.notes && (
