@@ -6,8 +6,8 @@ import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@cl
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/new-deal", label: "New Deal" },
-  { href: "/hud-rent-lookup", label: "HUD Rent Lookup" },
-  { href: "/inspection-readiness", label: "Inspection Readiness" },
+  { href: "/hud-rent", label: "HUD Rent Lookup" },
+  { href: "/inspection", label: "Inspection Readiness" },
   { href: "/resources", label: "Resources" },
   { href: "/zip-insights", label: "ZIP Insights" },
   { href: "/assistant", label: "Assistant" },
