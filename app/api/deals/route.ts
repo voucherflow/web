@@ -72,6 +72,7 @@ export async function GET() {
           ":skPrefix": "DEAL#",
         },
         ScanIndexForward: false,
+        Limit: 100,
       })
     );
 
