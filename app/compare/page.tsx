@@ -9,6 +9,7 @@ export default function ComparePage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [compareDeals, setCompareDeals] = useState<any[]>([]);
   const [error, setError] = useState("");
+  const [sortByScore, setSortByScore] = useState(true);
 
   useEffect(() => {
     fetch("/api/deals")
@@ -61,6 +62,30 @@ export default function ComparePage() {
   const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString()}`;
   const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 
+  const scoreDeal = (u: any) => {
+    // normalize: capRate (0-20), ROI (0-50), cashflow (0-1500)
+    const capScore = Math.min(Math.max(u.capRate, 0), 20) * 2; // up to 40 pts
+    const roiScore = Math.min(Math.max(u.roi, 0), 50) * 1; // up to 50 pts
+    const cfScore = Math.min(Math.max(u.cashflowMonthly, 0), 1500) / 30; // up to 50 pts
+
+    // total max around 140
+    return capScore + roiScore + cfScore;
+  };
+
+  const ranked = useMemo(() => {
+    const computed = rows.map((r) => ({
+      ...r,
+      score: scoreDeal(r.u),
+    }));
+
+    const sorted = computed.slice().sort((a, b) => b.score - a.score);
+    return sorted;
+  }, [rows]);
+
+  const best = ranked[0] || null;
+
+  const displayed = sortByScore ? ranked : rows;
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -84,9 +109,7 @@ export default function ComparePage() {
       )}
 
       <div className="rounded-2xl bg-white p-6 shadow-sm space-y-4">
-        <div className="text-sm text-gray-700">
-          Pick up to 4 deals:
-        </div>
+        <div className="text-sm text-gray-700">Pick up to 4 deals:</div>
 
         <div className="grid gap-3 md:grid-cols-2">
           {allDeals.map((d) => (
@@ -120,6 +143,7 @@ export default function ComparePage() {
           >
             Compare
           </button>
+
           <button
             onClick={() => {
               setSelected([]);
@@ -130,16 +154,52 @@ export default function ComparePage() {
           >
             Clear
           </button>
+
+          <button
+            onClick={() => setSortByScore((v) => !v)}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 hover:bg-gray-50"
+          >
+            {sortByScore ? "Sorted: Score" : "Sorted: Selection Order"}
+          </button>
         </div>
       </div>
 
-      {rows.length > 0 && (
+      {best && (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-sm">
+          <div className="font-semibold text-green-900">
+            🏆 Best Deal: {best.deal.zip} • {best.deal.bedrooms}BR
+          </div>
+
+          <div className="mt-2 text-green-800">
+            Strongest overall based on a blended score of cashflow, cap rate, and ROI.
+          </div>
+
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <div className="rounded-xl bg-white p-3 border border-green-200">
+              <div className="text-xs text-gray-500">Cashflow (mo)</div>
+              <div className="font-semibold">{fmtMoney(best.u.cashflowMonthly)}</div>
+            </div>
+
+            <div className="rounded-xl bg-white p-3 border border-green-200">
+              <div className="text-xs text-gray-500">Cap Rate</div>
+              <div className="font-semibold">{fmtPct(best.u.capRate)}</div>
+            </div>
+
+            <div className="rounded-xl bg-white p-3 border border-green-200">
+              <div className="text-xs text-gray-500">ROI</div>
+              <div className="font-semibold">{fmtPct(best.u.roi)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {displayed.length > 0 && (
         <div className="rounded-2xl bg-white p-6 shadow-sm overflow-x-auto">
           <table className="min-w-[900px] text-sm">
             <thead>
               <tr className="border-b text-left text-gray-600">
                 <th className="py-2 pr-4">Metric</th>
-                {rows.map(({ deal }) => (
+                {displayed.map(({ deal }) => (
                   <th key={deal.dealId} className="py-2 pr-4">
                     {deal.zip} • {deal.bedrooms}BR
                   </th>
@@ -163,7 +223,7 @@ export default function ComparePage() {
               ].map(([label, fn]) => (
                 <tr key={label as string} className="border-b">
                   <td className="py-2 pr-4 font-medium">{label as string}</td>
-                  {rows.map(({ deal, u }) => (
+                  {displayed.map(({ deal, u }) => (
                     <td key={deal.dealId} className="py-2 pr-4">
                       {(fn as any)(u)}
                     </td>
