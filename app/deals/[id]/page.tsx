@@ -13,6 +13,16 @@ export default function DealDetail() {
   const [error, setError] = useState<string>("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [hydrated, setHydrated] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    zip: "",
+    bedrooms: 3,
+    purchasePrice: 0,
+    rehabCost: 0,
+    arv: 0,
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const updateEdit = (k: string, v: any) => setEditForm({ ...editForm, [k]: v });
   const [assumptions, setAssumptions] = useState({
     vacancyPct: 8,
     repairsPct: 8,
@@ -49,6 +59,13 @@ export default function DealDetail() {
         }
 
         setDeal(data);
+        setEditForm({
+            zip: data.zip || "",
+            bedrooms: Number(data.bedrooms || 3),
+            purchasePrice: Number(data.purchasePrice || 0),
+            rehabCost: Number(data.rehabCost || 0),
+            arv: Number(data.arv || 0),
+        });          
         if (data?.assumptions) setAssumptions(data.assumptions);
         if (data?.loan) setLoan(data.loan);
         setHydrated(true);
@@ -171,6 +188,71 @@ export default function DealDetail() {
     router.push("/deals");
   };
 
+  const saveAndRegenerate = async () => {
+    if (!id) return;
+  
+    setEditLoading(true);
+    try {
+      // 1) Pull HUD rent
+      const rentRes = await fetch(`/api/hud-rent?zip=${editForm.zip}&bedrooms=${editForm.bedrooms}`);
+      const rentJson = await rentRes.json();
+      if (!rentRes.ok) throw new Error(rentJson?.error || "HUD rent lookup failed");
+  
+      // 2) Regenerate memo
+      const memoRes = await fetch("/api/deal-memo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          zip: editForm.zip,
+          bedrooms: editForm.bedrooms,
+          purchasePrice: Number(editForm.purchasePrice),
+          rehabCost: Number(editForm.rehabCost),
+          arv: Number(editForm.arv),
+          hudRent: Number(rentJson.rent),
+        }),
+      });
+  
+      const memoJson = await memoRes.json();
+      if (!memoRes.ok) throw new Error(memoJson?.error || "Memo generation failed");
+  
+      // 3) Save updated deal fields
+      const patchRes = await fetch(`/api/deals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          zip: editForm.zip,
+          bedrooms: editForm.bedrooms,
+          purchasePrice: Number(editForm.purchasePrice),
+          rehabCost: Number(editForm.rehabCost),
+          arv: Number(editForm.arv),
+          hudRent: Number(rentJson.rent),
+          memo: memoJson.memo,
+        }),
+      });
+  
+      const patchJson = await patchRes.json().catch(() => ({}));
+      if (!patchRes.ok) throw new Error(patchJson?.error || "Save failed");
+  
+      // 4) Update local UI immediately (no refresh needed)
+      setDeal((prev: any) => ({
+        ...prev,
+        zip: editForm.zip,
+        bedrooms: editForm.bedrooms,
+        purchasePrice: Number(editForm.purchasePrice),
+        rehabCost: Number(editForm.rehabCost),
+        arv: Number(editForm.arv),
+        hudRent: Number(rentJson.rent),
+        memo: memoJson.memo,
+      }));
+  
+      setEditing(false);
+    } catch (e: any) {
+      alert(e?.message || "Error saving deal");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const monthlyPayment = (principal: number, annualRatePct: number, years: number) => {
     const r = (annualRatePct / 100) / 12;
     const n = years * 12;
@@ -243,6 +325,71 @@ export default function DealDetail() {
           <h1 className="text-2xl font-bold">
             Deal — {deal.zip} • {deal.bedrooms}BR
           </h1>
+          {editing && (
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="grid gap-3 md:grid-cols-5 text-sm">
+                <input
+                    className="input"
+                    placeholder="ZIP"
+                    value={editForm.zip}
+                    onChange={(e) => updateEdit("zip", e.target.value)}
+                />
+
+                <input
+                    className="input"
+                    type="number"
+                    placeholder="Bedrooms"
+                    value={editForm.bedrooms}
+                    onChange={(e) => updateEdit("bedrooms", Number(e.target.value))}
+                />
+
+                <input
+                    className="input"
+                    type="number"
+                    placeholder="Purchase Price"
+                    value={editForm.purchasePrice}
+                    onChange={(e) => updateEdit("purchasePrice", Number(e.target.value))}
+                />
+
+                <input
+                    className="input"
+                    type="number"
+                    placeholder="Rehab Cost"
+                    value={editForm.rehabCost}
+                    onChange={(e) => updateEdit("rehabCost", Number(e.target.value))}
+                />
+
+                <input
+                    className="input"
+                    type="number"
+                    placeholder="ARV"
+                    value={editForm.arv}
+                    onChange={(e) => updateEdit("arv", Number(e.target.value))}
+                />
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                    onClick={saveAndRegenerate}
+                    disabled={editLoading}
+                    className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
+                >
+                    {editLoading ? "Saving..." : "Save & Regenerate Memo"}
+                </button>
+
+                <button
+                    onClick={() => setEditing(false)}
+                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                </div>
+
+                <div className="mt-2 text-xs text-gray-500">
+                This will re-pull HUD rent and regenerate the AI memo using your updated numbers.
+                </div>
+            </div>
+            )}
 
           <div className="flex items-center gap-2">
             <button
@@ -254,10 +401,13 @@ export default function DealDetail() {
 
             <button
               onClick={deleteDeal}
-              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-red-700 hover:bg-red-50"
-            >
+              className="rounded-lg border border-red-300 bg-white px-4 py-2 text-red-700 hover:bg-red-50">
               Delete
             </button>
+            <button onClick={() => setEditing((v) => !v)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">
+                {editing ? "Close" : "Edit Deal"}
+            </button>
+
           </div>
         </div>
 

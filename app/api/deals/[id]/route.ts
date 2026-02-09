@@ -64,29 +64,42 @@ export async function PATCH(
       const { id } = await params;
       const body = await req.json();
   
-      const hasAssumptions = body?.assumptions && typeof body.assumptions === "object";
-      const hasLoan = body?.loan && typeof body.loan === "object";
-  
-      if (!hasAssumptions && !hasLoan) {
-        return NextResponse.json(
-          { error: "Provide assumptions and/or loan object" },
-          { status: 400 }
-        );
-      }
-  
       const pk = `USER#${userId}`;
       const sk = `DEAL#${id}`;
   
       const sets: string[] = ["updatedAt = :u"];
       const values: Record<string, any> = { ":u": new Date().toISOString() };
   
-      if (hasAssumptions) {
+      // Optional objects
+      if (body?.assumptions && typeof body.assumptions === "object") {
         sets.push("assumptions = :a");
         values[":a"] = body.assumptions;
       }
-      if (hasLoan) {
+      if (body?.loan && typeof body.loan === "object") {
         sets.push("loan = :l");
         values[":l"] = body.loan;
+      }
+  
+      // Optional deal fields
+      const allow = [
+        "zip",
+        "bedrooms",
+        "purchasePrice",
+        "rehabCost",
+        "arv",
+        "hudRent",
+        "memo",
+      ] as const;
+  
+      for (const key of allow) {
+        if (body[key] !== undefined) {
+          sets.push(`${key} = :${key}`);
+          values[`:${key}`] = body[key];
+        }
+      }
+  
+      if (sets.length === 1) {
+        return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
       }
   
       await ddb.send(
@@ -105,6 +118,8 @@ export async function PATCH(
       return NextResponse.json({ error: msg }, { status });
     }
   }
+  
+  
   
 
 export async function DELETE(
