@@ -13,6 +13,7 @@ const navItems = [
   { href: "/zip-insights", label: "ZIP Insights" },
   { href: "/assistant", label: "Assistant" },
   { href: "/deals", label: "My Deals" },
+  { href: "/compare", label: "Compare" }
 ];
 
 export default function NavBar() {
